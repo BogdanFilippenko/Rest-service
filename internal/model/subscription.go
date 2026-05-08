@@ -5,11 +5,12 @@ import (
 )
 
 type Subscription struct{
+	ID int 				`json:"id"`
 	ServiceName string 	`json:"service_name"`
 	Price int 				`json:"price"`
-	Id uuid.UUID			`json:"user_id"`
-	DataStart string		`json:"start_date"`
-	DataEnd *string			`json:"end_date,omitempty"`
+	UserId uuid.UUID			`json:"user_id"`
+	StartData string		`json:"start_data"`
+	EndData *string			`json:"end_data,omitempty"`
 
 
 }
