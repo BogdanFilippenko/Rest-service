@@ -1,0 +1,122 @@
+openapi: 3.0.0
+info:
+  title: Subscriptions API
+  description: API для управления подписками на сервисы
+  version: 1.0.0
+
+paths:
+  /subscriptions:
+    get:
+      summary: Получить список всех подписок
+      responses:
+        '200':
+          description: Успешный возврат списка
+    post:
+      summary: Создать подписку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_name, price, user_id] 
+              properties:
+                service_name:
+                  type: string
+                price:
+                  type: integer
+                user_id:
+                  type: string
+                  format: uuid
+                start_date:
+                  type: string
+                  example: "07-2025"
+                end_date:
+                  type: string
+                  example: "12-2025"
+      responses:
+        '201':
+          description: Успешно создано
+        '400':
+          description: Ошибка валидации
+
+  /subscriptions/{id}:
+    get:
+      summary: Получить подписку по ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешно
+        '404':
+          description: Не найдено
+    put:
+      summary: Обновить подписку
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                service_name:
+                  type: string
+                price:
+                  type: integer
+                user_id:
+                  type: string
+                start_date:
+                  type: string
+                end_date:
+                  type: string
+      responses:
+        '200':
+          description: Успешно обновлено
+    delete:
+      summary: Удалить подписку
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешно удалено
+
+  /subscriptions/cost:
+    post:
+      summary: Посчитать суммарную стоимость подписок за период
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                service_name:
+                  type: string
+                start_date:
+                  type: string
+                  example: "01-2025"
+                end_date:
+                  type: string
+                  example: "12-2025"
+      responses:
+        '200':
+          description: Успешно посчитано
+        '400':
+          description: Ошибка в датах

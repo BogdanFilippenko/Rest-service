@@ -28,14 +28,14 @@ func parseDate(monthYear string) (time.Time, error) {
 }
 //CREATE
 func (r *Repository) Create(ctx context.Context, sub model.Subscription) (int, error) {
-	start, err := parseDate(sub.StartData)
+	start, err := parseDate(sub.StartDate)
 	if err != nil {
 		return 0, fmt.Errorf("invalid start_date: %w", err)
 	}
 
 	var end sql.NullTime
-	if sub.EndData != nil {
-		parsedEnd, err := parseDate(*sub.EndData)
+	if sub.EndDate != nil {
+		parsedEnd, err := parseDate(*sub.EndDate)
 		if err != nil {
 			return 0, fmt.Errorf("invalid end_date: %w", err)
 		}
@@ -43,9 +43,9 @@ func (r *Repository) Create(ctx context.Context, sub model.Subscription) (int, e
 	}
 
 	query :=
-		`INSERT INTO subscription (service_name, price, user_id, start_data, end_data )
+		`INSERT INTO subscription (service_name, price, user_id, start_date, end_date )
  VALUES ($1,$2,$3,$4,$5)
- RETURNING ID
+ RETURNING id
  `
 	var id int
 	err = r.db.QueryRowContext(ctx, query, sub.ServiceName, sub.Price, sub.UserId, start, end).Scan(&id)
@@ -56,7 +56,7 @@ func (r *Repository) Create(ctx context.Context, sub model.Subscription) (int, e
 }
 //FINDBYID
 func (r *Repository) FindByID(ctx context.Context, id int)(model.Subscription, error){
-	query := `SELECT id, service_name, price, user_id, start_data, end_data FROM subscription WHERE id = $1 `
+	query := `SELECT id, service_name, price, user_id, start_date, end_date FROM subscription WHERE id = $1 `
 
 	var sub model.Subscription
 	var start time.Time
@@ -64,20 +64,24 @@ func (r *Repository) FindByID(ctx context.Context, id int)(model.Subscription, e
 	
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&sub.ID, &sub.ServiceName, &sub.Price, &sub.UserId, &start, &end)
 	if err!= nil{
+		if errors.Is(err, sql.ErrNoRows) {
+			return sub, errors.New("not found")
+		}
 		return sub, err
+
 	}
 
-	sub.StartData = start.Format("01-2006")
+	sub.StartDate = start.Format("01-2006")
 	if end.Valid{
 		endStr := end.Time.Format("01-2006")
-		sub.EndData = &endStr
+		sub.EndDate = &endStr
 	}
 	return sub, nil
 
 }
 //LIST
 func(r *Repository)List(ctx context.Context)([]model.Subscription, error){
-	query := `SELECT id, service_name, price, user_id, start_data, end_data FROM subscription`
+	query := `SELECT id, service_name, price, user_id, start_date, end_date FROM subscription`
 
 	rows, err:=r.db.QueryContext(ctx, query)
 	if err!= nil{
@@ -95,10 +99,10 @@ func(r *Repository)List(ctx context.Context)([]model.Subscription, error){
 	if err:= rows.Scan(&sub.ID, &sub.ServiceName, &sub.Price, &sub.UserId, &start, &end); err !=nil{
 		return nil, err
 	}
-	sub.StartData = start.Format("01-2006")
+	sub.StartDate = start.Format("01-2006")
 		if end.Valid {
 			endStr := end.Time.Format("01-2006")
-			sub.EndData = &endStr
+			sub.EndDate = &endStr
 		}
 		subs = append(subs, sub)
 
@@ -111,14 +115,14 @@ func(r *Repository)List(ctx context.Context)([]model.Subscription, error){
 
 //UPDATE
 func (r *Repository) Update(ctx context.Context, id int, sub model.Subscription) error {
-	start, err := parseDate(sub.StartData)
+	start, err := parseDate(sub.StartDate)
 	if err != nil {
 		return fmt.Errorf("invalid start_date: %w", err)
 	}
 
 	var end sql.NullTime
-	if sub.EndData != nil {
-		parsedEnd, err := parseDate(*sub.EndData)
+	if sub.EndDate != nil {
+		parsedEnd, err := parseDate(*sub.EndDate)
 		if err != nil {
 			return fmt.Errorf("invalid end_date: %w", err)
 		}
@@ -126,8 +130,8 @@ func (r *Repository) Update(ctx context.Context, id int, sub model.Subscription)
 	}
 
 	query := `
-		UPDATE subscriptions 
-		SET service_name = $1, price = $2,user_id = $3, start_data = $4, end_data = $5 
+		UPDATE subscription 
+		SET service_name = $1, price = $2,user_id = $3, start_date = $4, end_date = $5 
 		WHERE id = $6`
 
 	res, err := r.db.ExecContext(ctx, query, sub.ServiceName, sub.Price, sub.UserId, start, end, id)
@@ -147,17 +151,26 @@ func (r *Repository) Update(ctx context.Context, id int, sub model.Subscription)
 }
 //DELETE
 func (r *Repository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM subscriptions WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	query := `DELETE FROM subscription WHERE id = $1`
+	res, err := r.db.ExecContext(ctx, query, id)
+	if err!=nil{
 	return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err!=nil{
+		return err
+	}
+	if rowsAffected == 0{
+		return errors.New("not found")
+	}
+	return nil
 }
 
+func (r *Repository) GetForCostCalculation(ctx context.Context, UserID uuid.UUID, ServiceName string) ([]model.Subscription, error) {
+	query := `SELECT id, service_name, price, user_id, start_date, end_date
+	          FROM subscription WHERE user_id = $1 AND service_name = $2`
 
-func (r *Repository) GetForCostCalculation(ctx context.Context, UserId uuid.UUID, ServiceName string) ([]model.Subscription, error) {
-	query := `SELECT id, service_name, price, user_id, start_data, end_data 
-	          FROM subscriptions WHERE user_id = $1 AND service_name = $2`
-
-	rows, err := r.db.QueryContext(ctx, query, UserId, ServiceName)
+	rows, err := r.db.QueryContext(ctx, query, UserID, ServiceName)
 	if err != nil {
 		return nil, err
 	}
@@ -172,10 +185,10 @@ func (r *Repository) GetForCostCalculation(ctx context.Context, UserId uuid.UUID
 		if err := rows.Scan(&sub.ID, &sub.ServiceName, &sub.Price, &sub.UserId, &start, &end); err != nil {
 			return nil, err
 		}
-		sub.StartData = start.Format("01-2006")
+		sub.StartDate = start.Format("01-2006")
 		if end.Valid {
 			endStr := end.Time.Format("01-2006")
-			sub.EndData = &endStr
+			sub.EndDate = &endStr
 		}
 		subs = append(subs, sub)
 	}
